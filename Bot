@@ -1,0 +1,38 @@
+import makeWASocket, { useMultiFileAuthState, downloadContentFromMessage } from "@whiskeysockets/baileys"
+
+async function start() {
+    const { state, saveCreds } = await useMultiFileAuthState("./auth")
+
+    const sock = makeWASocket({
+        printQRInTerminal: true,
+        auth: state
+    })
+
+    sock.ev.on("creds.update", saveCreds)
+
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+        const msg = messages[0]
+        if (!msg.message) return
+
+        const viewOnce = msg.message.viewOnceMessageV2
+
+        if (viewOnce && viewOnce.message && viewOnce.message.imageMessage) {
+
+            const media = viewOnce.message.imageMessage
+            const stream = await downloadContentFromMessage(media, "image")
+
+            let buffer = Buffer.from([])
+
+            for await (const chunk of stream) {
+                buffer = Buffer.concat([buffer, chunk])
+            }
+
+            await sock.sendMessage(msg.key.remoteJid, {
+                image: buffer,
+                caption: "Photo vue unique récupérée ✔️"
+            })
+        }
+    })
+}
+
+start()
